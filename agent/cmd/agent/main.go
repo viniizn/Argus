@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/viniizn/Argus/agent/internal/collector"
+	"github.com/viniizn/Argus/agent/internal/identity"
 )
 
 func main() {
@@ -27,7 +28,19 @@ func main() {
 	logger.Info("agent stopped cleanly")
 }
 
+const identityPath = "./data/identity.json"
+
 func run(ctx context.Context, logger *slog.Logger) error {
+	id, err := identity.Load(identityPath)
+	if err != nil {
+		return fmt.Errorf("load identity: %w", err)
+	}
+
+	logger.Info("agent identity loaded",
+		"agentId", id.AgentID,
+		"createdAt", id.CreatedAt,	
+	)
+	
 	info, err := collector.SystemInfo()
 	if err != nil {
 		return fmt.Errorf("collect system info: %w", err)
