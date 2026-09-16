@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/viniizn/Argus/agent/internal/collector"
+	"github.com/viniizn/Argus/agent/internal/config"
 	"github.com/viniizn/Argus/agent/internal/identity"
 )
 
@@ -28,10 +29,19 @@ func main() {
 	logger.Info("agent stopped cleanly")
 }
 
-const identityPath = "./data/identity.json"
-
 func run(ctx context.Context, logger *slog.Logger) error {
-	id, err := identity.Load(identityPath)
+	cfg, err := config.Load("./data/config.json")
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+
+	logger.Info("agent configuration loaded",
+		"serverUrl", cfg.ServerURL,
+		"logLevel", cfg.LogLevel,
+		"heartbeatInterval", cfg.HeartbeatInterval,
+	)
+
+	id, err := identity.Load(cfg.IdentityPath)
 	if err != nil {
 		return fmt.Errorf("load identity: %w", err)
 	}
