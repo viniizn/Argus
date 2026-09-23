@@ -5,8 +5,10 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
+	"fmt"
 
 	"github.com/viniizn/Argus/agent/internal/model"
+	"github.com/viniizn/Argus/agent/internal/retry"
 	"github.com/viniizn/Argus/agent/internal/transport"
 )
 
@@ -72,19 +74,30 @@ func (r *Runner) Run(ctx context.Context) {
 }
 
 func (r *Runner) send(ctx context.Context) {
-	r.payload.Timestamp = time.Now().UTC()
+	err := retry.Do(ctx, retry.DefaultConfig(), r.logger, func() error {
+		r.payload.Timestamp = time.Now().UTC()
 
-	resp, err := r.client.Post(ctx, "/api/v1/heartbeat", r.payload)
+		resp, err := r.client.Post(ctx, "/api/v1/heartbeat", r.payload)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == http.StatusOK {
+			r.logger.Info("heartbeat sent", "agentId", r.payload.AgentID)
+			return nil
+		}
+
+		if resp.StatusCode >= 400 && resp.StatusCode < 500 && resp.StatusCode != http.StatusTooManyRequests {
+			return &retry.NonRetryableError{
+				Cause: fmt.Errorf("server rejected heartbeat with status %d", resp.StatusCode),
+			}
+		}
+
+		return fmt.Errorf("heartbeat failed with status %d", resp.StatusCode)
+	})
+
 	if err != nil {
-		r.logger.Warn("heartbeat failed", "error", err)
-		return
+		r.logger.Warn("heartbeat gave up after retries", "error", err)
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		r.logger.Warn("heartbeat rejected by server", "status", resp.StatusCode)
-		return
-	}
-
-	r.logger.Info("heartbeat sent", "agentId", r.payload.AgentID)
 }
