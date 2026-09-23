@@ -1,16 +1,20 @@
 package main
 
 import (
-	"context"
-	"fmt"
-	"log/slog"
-	"os"
-	"os/signal"
-	"syscall"
+    "context"
+    "fmt"
+    "log/slog"
+    "os"
+    "os/signal"
+    "sync"
+    "syscall"
+    "time"
 
-	"github.com/viniizn/Argus/agent/internal/collector"
-	"github.com/viniizn/Argus/agent/internal/config"
-	"github.com/viniizn/Argus/agent/internal/identity"
+    "github.com/viniizn/Argus/agent/internal/collector"
+    "github.com/viniizn/Argus/agent/internal/config"
+    "github.com/viniizn/Argus/agent/internal/heartbeat"
+    "github.com/viniizn/Argus/agent/internal/identity"
+    "github.com/viniizn/Argus/agent/internal/transport"
 )
 
 func main() {
@@ -48,9 +52,9 @@ func run(ctx context.Context, logger *slog.Logger) error {
 
 	logger.Info("agent identity loaded",
 		"agentId", id.AgentID,
-		"createdAt", id.CreatedAt,	
+		"createdAt", id.CreatedAt,
 	)
-	
+
 	info, err := collector.SystemInfo()
 	if err != nil {
 		return fmt.Errorf("collect system info: %w", err)
@@ -64,7 +68,27 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		"agentVersion", info.AgentVersion,
 	)
 
+	client := transport.New(cfg.ServerURL)
+
+	hb := heartbeat.New(
+		client,
+		id.AgentID,
+		info,
+		time.Duration(cfg.HeartbeatInterval)*time.Second,
+		logger,
+	)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		hb.Run(ctx)
+	}()
+
 	<-ctx.Done()
-	logger.Info("shutdown signal received")
+	logger.Info("shutdown signal received, waiting for goroutines")
+	wg.Wait()
+	logger.Info("agent stopped cleanly")
+
 	return nil
 }
