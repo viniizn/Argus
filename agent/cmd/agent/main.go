@@ -15,6 +15,8 @@ import (
     "github.com/viniizn/Argus/agent/internal/heartbeat"
     "github.com/viniizn/Argus/agent/internal/identity"
     "github.com/viniizn/Argus/agent/internal/transport"
+	"github.com/viniizn/Argus/agent/internal/fim"
+	"github.com/viniizn/Argus/agent/internal/model"
 )
 
 func main() {
@@ -68,6 +70,14 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		"agentVersion", info.AgentVersion,
 	)
 
+	events := make(chan model.Event, 100)
+
+	fimCfg := fim.Config{
+		Paths:    []string{"./data"},
+		Interval: 10 * time.Second,
+	}
+	fimRunner := fim.New(id.AgentID, fimCfg, logger)
+
 	client := transport.New(cfg.ServerURL)
 
 	hb := heartbeat.New(
@@ -79,16 +89,40 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	)
 
 	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		fimRunner.Run(ctx, events)
+	}()
+
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		hb.Run(ctx)
 	}()
 
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case event := <-events:
+				logger.Info("event received",
+					"id", event.ID,
+					"type", event.Type,
+					"severity", event.Severity,
+					"agentId", event.AgentID,
+				)
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
 	<-ctx.Done()
 	logger.Info("shutdown signal received, waiting for goroutines")
 	wg.Wait()
-	logger.Info("agent stopped cleanly")
 
 	return nil
 }
