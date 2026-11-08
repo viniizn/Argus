@@ -1,4 +1,7 @@
 package com.argus.server.agent;
 
-public class AgentStatus {
+public enum AgentStatus {
+    ONLINE,
+    OFFLINE,
+    DEGRADED
 }
