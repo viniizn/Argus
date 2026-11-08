@@ -36,6 +36,23 @@ public class Agent {
     @Column(name = "registered_at", nullable = false, updatable = false)
     private Instant registeredAt;
 
+    @Column(name = "credential_hash")
+    private String credentialHash;
+
+    @Column(name = "credential_issued_at")
+    private Instant credentialIssuedAt;
+
+    public boolean hasCredential() {
+        return credentialHash != null;
+    }
+
+    public void issueCredential(String hash) {
+        this.credentialHash = hash;
+        this.credentialIssuedAt = Instant.now();
+    }
+
+    public String getCredentialHash() { return credentialHash; }
+
     protected Agent() {}
 
     public static Agent register(UUID id, String hostname, String os,
