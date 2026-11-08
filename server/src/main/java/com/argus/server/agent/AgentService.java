@@ -18,31 +18,10 @@ public class AgentService {
 
     @Transactional
     public void processHeartbeat(HeartbeatRequest request) {
-        repository.findById(request.agentId()).ifPresentOrElse(
-                agent -> {
-                    agent.recordHeartbeat(
-                            request.hostname(),
-                            request.os(),
-                            request.architecture(),
-                            request.ipAddress(),
-                            request.agentVersion()
-                    );
-                    log.info("Heartbeat received agentId={} hostname={} status=ONLINE",
-                            request.agentId(), request.hostname());
-                },
-                () -> {
-                    Agent agent = Agent.register(
-                            request.agentId(),
-                            request.hostname(),
-                            request.os(),
-                            request.architecture(),
-                            request.ipAddress(),
-                            request.agentVersion()
-                    );
-                    repository.save(agent);
-                    log.info("Agent registered agentId={} hostname={}",
-                            request.agentId(), request.hostname());
-                }
-        );
+        Agent agent = repository.findById(request.agentId())
+                .orElseThrow(() -> new IllegalStateException("Authenticated agent not found"));
+        agent.recordHeartbeat(request.hostname(), request.os(), request.architecture(),
+                request.ipAddress(), request.agentVersion());
+        log.info("Heartbeat received agentId={} hostname={}", request.agentId(), request.hostname());
     }
 }
