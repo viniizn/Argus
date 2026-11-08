@@ -77,7 +77,7 @@ func (r *Runner) send(ctx context.Context) {
 	err := retry.Do(ctx, retry.DefaultConfig(), r.logger, func() error {
 		r.payload.Timestamp = time.Now().UTC()
 
-		resp, err := r.client.Post(ctx, "/api/v1/heartbeat", r.payload)
+		resp, err := r.client.Post(ctx, "/api/v1/agents/heartbeat", r.payload)
 		if err != nil {
 			return err
 		}
