@@ -1,4 +1,5 @@
 package config
+
 import (
 	"encoding/json"
 	"fmt"
@@ -7,17 +8,19 @@ import (
 )
 
 type Config struct {
-	ServerURL string `json:"serverUrl"`
-	IdentityPath string `json:"identityPath"`
-	LogLevel string `json:"logLevel"`
-	HeartbeatInterval int `json:"heartbeatInterval"`
+	ServerURL         string `json:"serverUrl"`
+	IdentityPath      string `json:"identityPath"`
+	CredentialPath    string `json:"credentialPath"`
+	LogLevel          string `json:"logLevel"`
+	HeartbeatInterval int    `json:"heartbeatInterval"`
 }
 
 func defaults() Config {
-	return Config {
-		ServerURL: "https://localhost:8443",
-		IdentityPath: "/etc/argus/agent/identity.json",
-		LogLevel: "info",
+	return Config{
+		ServerURL:         "https://localhost:8443",
+		IdentityPath:      "/etc/argus/agent/identity.json",
+		CredentialPath:    "/etc/argus/agent/credential.json",
+		LogLevel:          "info",
 		HeartbeatInterval: 30,
 	}
 }
@@ -42,7 +45,7 @@ func loadFile(path string, cfg *Config) error {
 		if os.IsNotExist(err) {
 			return nil
 		}
-		return fmt.Errorf("read config file: %w", err) 
+		return fmt.Errorf("read config file: %w", err)
 	}
 
 	if err := json.Unmarshal(data, cfg); err != nil {
@@ -58,6 +61,9 @@ func applyEnv(cfg *Config) {
 	}
 	if v := os.Getenv("ARGUS_IDENTITY_PATH"); v != "" {
 		cfg.IdentityPath = v
+	}
+	if v := os.Getenv("ARGUS_CREDENTIAL_PATH"); v != "" {
+		cfg.CredentialPath = v
 	}
 	if v := os.Getenv("ARGUS_LOG_LEVEL"); v != "" {
 		cfg.LogLevel = v

@@ -1,22 +1,25 @@
 package main
 
 import (
-    "context"
-    "fmt"
-    "log/slog"
-    "os"
-    "os/signal"
-    "sync"
-    "syscall"
-    "time"
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
+	"time"
 
-    "github.com/viniizn/Argus/agent/internal/collector"
-    "github.com/viniizn/Argus/agent/internal/config"
-    "github.com/viniizn/Argus/agent/internal/heartbeat"
-    "github.com/viniizn/Argus/agent/internal/identity"
-    "github.com/viniizn/Argus/agent/internal/transport"
+	"github.com/viniizn/Argus/agent/internal/collector"
+	"github.com/viniizn/Argus/agent/internal/config"
+	"github.com/viniizn/Argus/agent/internal/credential"
+	"github.com/viniizn/Argus/agent/internal/enroll"
 	"github.com/viniizn/Argus/agent/internal/fim"
+	"github.com/viniizn/Argus/agent/internal/heartbeat"
+	"github.com/viniizn/Argus/agent/internal/identity"
 	"github.com/viniizn/Argus/agent/internal/model"
+	"github.com/viniizn/Argus/agent/internal/transport"
 )
 
 func main() {
@@ -79,6 +82,26 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	fimRunner := fim.New(id.AgentID, fimCfg, logger)
 
 	client := transport.New(cfg.ServerURL)
+
+		cred, err := credential.Load(cfg.CredentialPath)
+	switch {
+	case errors.Is(err, credential.ErrNotFound):
+		token := os.Getenv("ARGUS_ENROLLMENT_TOKEN")
+		if token == "" {
+			return errors.New("no credential found and ARGUS_ENROLLMENT_TOKEN is not set")
+		}
+		cred, err = enroll.Enroll(ctx, client, logger, token, id.AgentID, info)
+		if err != nil {
+			return fmt.Errorf("enroll: %w", err)
+		}
+		if err := credential.Save(cfg.CredentialPath, cred); err != nil {
+			return fmt.Errorf("save credential: %w", err)
+		}
+		logger.Info("agent enrolled", "agentId", id.AgentID)
+	case err != nil:
+		return fmt.Errorf("load credential: %w", err)
+	}
+	client.SetCredential(cred)
 
 	hb := heartbeat.New(
 		client,
