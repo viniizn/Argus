@@ -73,7 +73,7 @@ func Do(ctx context.Context, cfg Config, logger * slog.Logger, fn func() error) 
 		}
 	}
 
-	return fmt.Errorf("all %d attempts failed: %w", ctx.Err())
+	return fmt.Errorf("all %d attempts failed: %w", cfg.MaxAttempts, err)
 }
 
 func calculateDelay(cfg Config, attempt int) time.Duration {
